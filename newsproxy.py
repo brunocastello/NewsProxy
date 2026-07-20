@@ -26,6 +26,7 @@ import html as html_mod
 import socketserver
 import select
 import socket as _socket
+import threading
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -38,11 +39,6 @@ import re
 import xml.etree.ElementTree as ET
 import trafilatura
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
 log = logging.getLogger("newsstand")
 
 # ---------------------------------------------------------------------------
@@ -268,6 +264,8 @@ CAAQ = {
 GOOGLE_NEWS_BASE = "https://news.google.com"
 _cache: dict = {}
 CACHE_TTL = 300
+MAX_CACHE_ITEMS = 300
+CACHE_CLEANUP_INTERVAL = 60
 
 ARTICLE_BASE = "http://www.getnewsstand.com/app/article.php"
 
@@ -630,6 +628,24 @@ _UA = (
 _gnews_cache: dict = {}
 
 
+def _cache_cleanup_loop():
+    while True:
+        time.sleep(CACHE_CLEANUP_INTERVAL)
+        now = time.time()
+        expired = [k for k, (ts, _) in list(_cache.items()) if now - ts >= CACHE_TTL]
+        for k in expired:
+            _cache.pop(k, None)
+        for cache in (_gnews_cache, _rss_body_cache):
+            if len(cache) > MAX_CACHE_ITEMS:
+                trim = list(cache.keys())[: len(cache) - MAX_CACHE_ITEMS * 3 // 4]
+                for k in trim:
+                    cache.pop(k, None)
+        log.debug(
+            "Cache sweep: %d fetch, %d gnews, %d rss_body",
+            len(_cache), len(_gnews_cache), len(_rss_body_cache),
+        )
+
+
 def decode_google_news_url(source_url: str, timeout: int = 15) -> str:
     """
     Decode a Google News RSS redirect URL to get the real article URL.
@@ -744,7 +760,7 @@ class NewsstandHandler(socketserver.BaseRequestHandler):
             path_query = parts[1]
 
             log.info(">> GET %s from %s", path_query, self.client_address[0])
-            log.info("RAW REQUEST: %r", raw)
+            log.debug("RAW REQUEST: %r", raw)
 
             body, ctype = self._dispatch(path_query)
 
@@ -785,25 +801,21 @@ class NewsstandHandler(socketserver.BaseRequestHandler):
         # Step 1: half-close write side — tells Mac OS 9 our response is done
         try:
             conn.shutdown(_socket.SHUT_WR)
-            log.info("CLOSE: SHUT_WR sent (FIN to client)")
+            log.debug("CLOSE: SHUT_WR sent (FIN to client)")
         except OSError as e:
-            log.info("CLOSE: SHUT_WR failed: %s", e)
+            log.debug("CLOSE: SHUT_WR failed: %s", e)
 
-        # Step 2: wait up to 5 s for client to send its FIN (after PageReceived fires)
+        # Step 2: wait up to 2 s for client to send its FIN (after PageReceived fires)
         try:
-            ready, _, _ = select.select([conn], [], [], 5.0)
+            ready, _, _ = select.select([conn], [], [], 2.0)
             if ready:
-                data = conn.recv(4096)
-                log.info("CLOSE: client sent %d bytes (FIN=%s)", len(data), len(data) == 0)
-            else:
-                log.info("CLOSE: 5s timeout — client did NOT send FIN; PageReceived likely not fired")
-        except OSError as e:
-            log.info("CLOSE: recv error: %s", e)
+                conn.recv(4096)
+        except OSError:
+            pass
 
         # Step 3: close our side
         try:
             conn.close()
-            log.info("CLOSE: socket closed")
         except OSError:
             pass
 
@@ -975,6 +987,15 @@ class NewsstandHandler(socketserver.BaseRequestHandler):
 
 
 if __name__ == "__main__":
+    if "--debug" in sys.argv:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s %(levelname)s %(message)s",
+            handlers=[logging.StreamHandler(sys.stdout)],
+        )
+    else:
+        logging.disable(logging.CRITICAL)
+
     print("Newsstand Mirror Server (raw TCP mode)")
     print("Listening on port 80")
     print("Mac OS 9 HOSTS: www.getnewsstand.com A 10.0.3.2")
@@ -982,7 +1003,8 @@ if __name__ == "__main__":
     try:
         socketserver.TCPServer.allow_reuse_address = True
         server = socketserver.ThreadingTCPServer(("", 80), NewsstandHandler)
-        server.serve_forever()
+        threading.Thread(target=_cache_cleanup_loop, daemon=True, name="cache-cleanup").start()
+        server.serve_forever(poll_interval=1.0)
     except PermissionError:
         print("ERROR: Run with sudo python3 newsstand_server.py")
         sys.exit(1)

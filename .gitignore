@@ -2,3 +2,5 @@ client/
 __pycache__/
 *.pyc
 .DS_Store
+*.plist
+newsproxy.sh
