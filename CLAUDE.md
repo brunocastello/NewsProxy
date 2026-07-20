@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Running the server
 
 ```bash
-sudo python3 newsproxy.py          # normal mode (no logs)
-sudo python3 newsproxy.py --debug  # debug mode (INFO logs to stdout)
+sudo python3 newsProxy.py          # normal mode (no logs)
+sudo python3 newsProxy.py --debug  # debug mode (INFO logs to stdout)
 ```
 
 Requires port 80, hence `sudo`. Dependencies: `pip install trafilatura lxml`
@@ -18,11 +18,11 @@ sudo cp com.bruninho.newsproxy.plist /Library/LaunchDaemons/
 sudo launchctl load /Library/LaunchDaemons/com.bruninho.newsproxy.plist
 ```
 
-The plist and `newsproxy.sh` are gitignored — they contain absolute local paths and are machine-specific.
+The plist and `newsProxy.sh` are gitignored — they contain absolute local paths and are machine-specific.
 
 ## Architecture
 
-`newsproxy.py` is a single-file HTTP server with no framework. It uses `socketserver.ThreadingTCPServer` with a raw TCP handler (`NewsstandHandler`) instead of `BaseHTTPRequestHandler`, because Classic Mac OS RealBasic's `HTTPSocket` requires a clean TCP FIN to fire `PageReceived`.
+`newsProxy.py` is a single-file HTTP server with no framework. It uses `socketserver.ThreadingTCPServer` with a raw TCP handler (`NewsstandHandler`) instead of `BaseHTTPRequestHandler`, because Classic Mac OS RealBasic's `HTTPSocket` requires a clean TCP FIN to fire `PageReceived`.
 
 **Request flow:**
 1. `NewsstandHandler.handle()` reads raw bytes until `\r\n\r\n`
