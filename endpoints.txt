@@ -1,82 +1,82 @@
 ---
   Newsstand 1.1 — Mirror Server Documentation
-  Servidor Python substituto para www.getnewsstand.com (Mac OS 9 / Classic)
+  Python drop-in replacement for www.getnewsstand.com (Mac OS 9 / Classic)
 
-  O app original (PowerPC RealBasic) fazia requisicoes HTTP para www.getnewsstand.com.
-  Este servidor Python replica todos os endpoints descobertos via analise do binario
-  e captura de trafego ao vivo.
+  The original app (PowerPC RealBasic) made HTTP requests to www.getnewsstand.com.
+  This Python server replicates all endpoints discovered through binary analysis
+  and live traffic capture.
 
-  SETUP: sudo python3 newsstand.py
-  Mac OS 9 HOSTS: adicionar "10.0.3.x  www.getnewsstand.com" em Extensions > TCP/IP
-  Porta: 80 (HTTP — o app nao suporta HTTPS)
+  SETUP: sudo python3 newsproxy.py
+  Mac OS 9 HOSTS: add "10.0.3.x  www.getnewsstand.com" under Extensions > TCP/IP
+  Port: 80 (HTTP — the app does not support HTTPS)
 
 ---
-  FORMATO XML (CONFIRMADO via captura ao vivo de getnewsstand.com)
+  XML FORMAT (CONFIRMED via live capture from getnewsstand.com)
 
-  Lista de artigos (index.php / topic.php / feedlist.php):
+  Article list (index.php / topic.php / feedlist.php):
     <?xml version="1.0" encoding="UTF-8"?>
     <League>
-      <Player><name>Titulo do artigo</name><position>http://www.getnewsstand.com/app/article.php?loc=US&amp;a=URL_DO_ARTIGO</position></Player>
+      <Player><name>Article title</name><position>http://www.getnewsstand.com/app/article.php?loc=US&amp;a=ARTICLE_URL</position></Player>
       ...
     </League>
 
-  Artigo individual (article.php):
+  Individual article (article.php):
     <?xml version="1.0" encoding="UTF-8"?>
-    <Player><name>Manchete</name><position>Corpo do artigo em texto plano</position></Player>
+    <Player><name>Headline</name><position>Article body in plain text</position></Player>
 
-  Content-Type: text/html; charset=UTF-8  (padrao PHP — NAO text/xml)
+  Content-Type: text/html; charset=UTF-8  (PHP default — NOT text/xml)
 
-  Como o app parseia:
-    - XQL "//Player" encontra todos os elementos <Player>
-    - player.FirstChild.Value  -> texto dentro de <name>  -> titulo na ListBox
-    - player.LastChild.Value   -> texto dentro de <position> -> URL ou corpo
-    - <position> NUNCA pode ser vazia: causa NilObjectException crash no app
+  How the app parses:
+    - XQL "//Player" finds all <Player> elements
+    - player.FirstChild.Value  -> text inside <name>  -> title in ListBox
+    - player.LastChild.Value   -> text inside <position> -> URL or body
+    - <position> must NEVER be empty: causes NilObjectException crash in the app
 
 ---
-  Tabela de Endpoints e Parametros
+  Endpoints and Parameters
 
   Endpoint: /app/index.php
-  Parametro: (sem params)
-  Descricao: Menu lateral com as secoes disponiveis (Today, Nation, World, etc.)
+  Parameter: (none)
+  Description: Sidebar menu with available sections (Today, Nation, World, etc.)
   ────────────────────────────────────────
   Endpoint: /app/index.php
-  Parametro: loc
-  Valores: US, UK, JP, CA, DE, IT, FR, AU, TW, NL, BR, TR, BE, GR, IN, MX,
-           DK, AR, CH, CL, AT, KR, IE, CO, PL, PT, PK, RU  (28 paises)
-  Descricao: Filtra noticias pelo pais
+  Parameter: loc
+  Values: US, UK, JP, CA, DE, IT, FR, AU, TW, NL, BR, TR, BE, GR, IN, MX,
+          DK, AR, CH, CL, AT, KR, IE, CO, PL, PT, PK, RU  (28 countries)
+  Description: Filters news by country
   ────────────────────────────────────────
   Endpoint: /app/index.php
-  Parametro: section
-  Valores: nation (National News), world (World News)
-  Descricao: Filtra por secao; sem esse param retorna "Today's News"
+  Parameter: section
+  Values: nation (National News), world (World News)
+  Description: Filters by section; omitting this param returns "Today's News"
   ────────────────────────────────────────
   Endpoint: /app/topic.php
-  Parametro: topic
-  Valores: ID de topico do Google News (CAAq... — base64 de protobuf)
-  Descricao: Artigos de um topico especifico do Google News
+  Parameter: topic
+  Values: Google News topic ID (CAAq... — base64-encoded protobuf)
+  Description: Articles from a specific Google News topic
   ────────────────────────────────────────
   Endpoint: /app/feedlist.php
-  Parametro: feed
-  Valores: URL de feed RSS 2.0 ou Atom, ou homepage do site (auto-discovery)
-  Descricao: Feed RSS/Atom customizado adicionado pelo usuario nas Preferencias.
-             Se a URL for uma pagina HTML, o servidor descobre o feed via
-             <link rel="alternate" type="application/rss+xml"> automaticamente.
+  Parameter: feed
+  Values: RSS 2.0 or Atom feed URL, or site homepage (auto-discovery)
+  Description: Custom RSS/Atom feed added by the user in Preferences.
+               If the URL points to an HTML page, the server discovers the feed
+               via <link rel="alternate" type="application/rss+xml"> automatically.
   ────────────────────────────────────────
   Endpoint: /app/article.php
-  Parametro: loc  (pais, ex: US)
-  Parametro: a    (URL do artigo — pode ser URL do Google News ou direta)
-  Descricao: Busca e extrai o texto do artigo. Para URLs do Google News,
-             decodifica via batchexecute API para obter a URL real.
-             Usa trafilatura para extrair so o texto principal.
-             Fallback: usa o corpo do feed RSS quando o site bloqueia scraping.
+  Parameter: loc  (country, e.g. US)
+  Parameter: a    (article URL — can be a Google News URL or a direct URL)
+  Description: Fetches and extracts the article text. For Google News URLs,
+               decodes via the batchexecute API to obtain the real URL.
+               Uses trafilatura to extract only the main body text.
+               Fallback: uses the RSS feed body when the site blocks scraping.
 
 ---
-  URLs completas construidas pelo app
+  Full URLs constructed by the app
 
-  # Menu principal (sidebar)
+  # Main menu (sidebar)
   http://www.getnewsstand.com/app/index.php
 
-  # Today's News para um pais
+  # Today's News for a country
   http://www.getnewsstand.com/app/index.php?loc=US&lang=en
 
   # National News
@@ -85,20 +85,20 @@
   # World News
   http://www.getnewsstand.com/app/index.php?section=world&loc=US&lang=en
 
-  # Topico especifico (ex: Apple)
+  # Specific topic (e.g. Apple)
   http://www.getnewsstand.com/app/topic.php?topic=CAAqBwgKMOvMpAow7td3
 
-  # Feed RSS customizado
+  # Custom RSS feed
   http://www.getnewsstand.com/app/feedlist.php?feed=https://feeds.macrumors.com/MacRumors-All
 
-  # Artigo (Google News URL)
+  # Article (Google News URL)
   http://www.getnewsstand.com/app/article.php?loc=US&a=https://news.google.com/rss/articles/CBMi...
 
-  # Artigo (URL direta de feed customizado)
+  # Article (direct URL from custom feed)
   http://www.getnewsstand.com/app/article.php?loc=US&a=https://arstechnica.com/...
 
 ---
-  Exemplos de IDs de topico (CAAq...) presentes no binario
+  Topic ID examples (CAAq...) found in the binary
 
   Top Technology News    CAAqJggKIiBDQkFTRWdvSUwyMHZNRGRqTVhZU0FtVnVHZ0pWVXlnQVAB
   Apple                  CAAqBwgKMOvMpAow7td3
@@ -109,30 +109,30 @@
   Top Business News      CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtVnVHZ0pWVXlnQVAB
 
 ---
-  Aprendizados tecnicos
+  Technical notes
 
   Google News URL decoding (batchexecute):
-    - URLs de artigos do Google News sao redirecionamentos: news.google.com/rss/articles/<base64>
-    - Para obter a URL real: buscar data-n-a-sg e data-n-a-ts na pagina do artigo,
-      depois POST para https://news.google.com/_/DotsSplashUi/data/batchexecute
-      com f.req contendo os parametros Fbv4je
+    - Google News article URLs are redirects: news.google.com/rss/articles/<base64>
+    - To obtain the real URL: fetch data-n-a-sg and data-n-a-ts from the article page,
+      then POST to https://news.google.com/_/DotsSplashUi/data/batchexecute
+      with f.req containing the Fbv4je parameters
 
-  Feeds RSS/Atom:
-    - RSS 2.0: root <rss>, itens em <channel>/<item>, link em <link> ou <guid>
-    - Atom:    root <feed> com namespace http://www.w3.org/2005/Atom,
-               itens em <entry>, link no atributo href de <link>
-    - content:encoded (namespace http://purl.org/rss/1.0/modules/content/) contem
-      o corpo completo do artigo em muitos feeds WordPress
-    - Feeds malformados (& nao escapado, BOM UTF-8): corrigidos antes do parse;
-      ultimo recurso: lxml com recover=True
+  RSS/Atom feeds:
+    - RSS 2.0: root <rss>, items under <channel>/<item>, link in <link> or <guid>
+    - Atom:    root <feed> with namespace http://www.w3.org/2005/Atom,
+               items in <entry>, link in the href attribute of <link>
+    - content:encoded (namespace http://purl.org/rss/1.0/modules/content/) contains
+      the full article body in many WordPress feeds
+    - Malformed feeds (unescaped &, UTF-8 BOM): fixed before parsing;
+      last resort: lxml with recover=True
 
-  Problemas de sites que bloqueiam scraping (Ars Technica AWS WAF, Cult of Mac 403):
-    - O servidor cacheia o corpo dos itens do feed RSS ao carregar a lista
-    - Ao abrir o artigo, usa o cache do feed em vez de fazer scraping
-    - Funciona para qualquer site que forneca conteudo no proprio feed
+  Sites that block scraping (Ars Technica AWS WAF, Cult of Mac 403):
+    - The server caches the body of RSS feed items when loading the article list
+    - When opening an article, it uses the feed cache instead of scraping
+    - Works for any site that includes content in the feed itself
 
-  Texto para Mac OS 9:
-    - Campos de texto usam \r (CR) como quebra de linha — \n vira quadrinho
-    - Solucao: achatar todo whitespace em espaco simples no corpo do artigo
-    - Caracteres nao-ASCII: transliterar via tabela _ASCII_SUBS (acentos, cedilha,
-      travessao, aspas tipograficas, simbolos ordinais o. e a.)
+  Text for Mac OS 9:
+    - Text fields use \r (CR) as line break — \n renders as a square glyph
+    - Solution: flatten all whitespace to single spaces in the article body
+    - Non-ASCII characters: transliterated via _ASCII_SUBS table (accents, cedilla,
+      em dash, typographic quotes, ordinal symbols o. and a.)
