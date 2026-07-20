@@ -1,0 +1,138 @@
+---
+  Newsstand 1.1 — Mirror Server Documentation
+  Servidor Python substituto para www.getnewsstand.com (Mac OS 9 / Classic)
+
+  O app original (PowerPC RealBasic) fazia requisicoes HTTP para www.getnewsstand.com.
+  Este servidor Python replica todos os endpoints descobertos via analise do binario
+  e captura de trafego ao vivo.
+
+  SETUP: sudo python3 newsstand.py
+  Mac OS 9 HOSTS: adicionar "10.0.3.x  www.getnewsstand.com" em Extensions > TCP/IP
+  Porta: 80 (HTTP — o app nao suporta HTTPS)
+
+---
+  FORMATO XML (CONFIRMADO via captura ao vivo de getnewsstand.com)
+
+  Lista de artigos (index.php / topic.php / feedlist.php):
+    <?xml version="1.0" encoding="UTF-8"?>
+    <League>
+      <Player><name>Titulo do artigo</name><position>http://www.getnewsstand.com/app/article.php?loc=US&amp;a=URL_DO_ARTIGO</position></Player>
+      ...
+    </League>
+
+  Artigo individual (article.php):
+    <?xml version="1.0" encoding="UTF-8"?>
+    <Player><name>Manchete</name><position>Corpo do artigo em texto plano</position></Player>
+
+  Content-Type: text/html; charset=UTF-8  (padrao PHP — NAO text/xml)
+
+  Como o app parseia:
+    - XQL "//Player" encontra todos os elementos <Player>
+    - player.FirstChild.Value  -> texto dentro de <name>  -> titulo na ListBox
+    - player.LastChild.Value   -> texto dentro de <position> -> URL ou corpo
+    - <position> NUNCA pode ser vazia: causa NilObjectException crash no app
+
+---
+  Tabela de Endpoints e Parametros
+
+  Endpoint: /app/index.php
+  Parametro: (sem params)
+  Descricao: Menu lateral com as secoes disponiveis (Today, Nation, World, etc.)
+  ────────────────────────────────────────
+  Endpoint: /app/index.php
+  Parametro: loc
+  Valores: US, UK, JP, CA, DE, IT, FR, AU, TW, NL, BR, TR, BE, GR, IN, MX,
+           DK, AR, CH, CL, AT, KR, IE, CO, PL, PT, PK, RU  (28 paises)
+  Descricao: Filtra noticias pelo pais
+  ────────────────────────────────────────
+  Endpoint: /app/index.php
+  Parametro: section
+  Valores: nation (National News), world (World News)
+  Descricao: Filtra por secao; sem esse param retorna "Today's News"
+  ────────────────────────────────────────
+  Endpoint: /app/topic.php
+  Parametro: topic
+  Valores: ID de topico do Google News (CAAq... — base64 de protobuf)
+  Descricao: Artigos de um topico especifico do Google News
+  ────────────────────────────────────────
+  Endpoint: /app/feedlist.php
+  Parametro: feed
+  Valores: URL de feed RSS 2.0 ou Atom, ou homepage do site (auto-discovery)
+  Descricao: Feed RSS/Atom customizado adicionado pelo usuario nas Preferencias.
+             Se a URL for uma pagina HTML, o servidor descobre o feed via
+             <link rel="alternate" type="application/rss+xml"> automaticamente.
+  ────────────────────────────────────────
+  Endpoint: /app/article.php
+  Parametro: loc  (pais, ex: US)
+  Parametro: a    (URL do artigo — pode ser URL do Google News ou direta)
+  Descricao: Busca e extrai o texto do artigo. Para URLs do Google News,
+             decodifica via batchexecute API para obter a URL real.
+             Usa trafilatura para extrair so o texto principal.
+             Fallback: usa o corpo do feed RSS quando o site bloqueia scraping.
+
+---
+  URLs completas construidas pelo app
+
+  # Menu principal (sidebar)
+  http://www.getnewsstand.com/app/index.php
+
+  # Today's News para um pais
+  http://www.getnewsstand.com/app/index.php?loc=US&lang=en
+
+  # National News
+  http://www.getnewsstand.com/app/index.php?section=nation&loc=US&lang=en
+
+  # World News
+  http://www.getnewsstand.com/app/index.php?section=world&loc=US&lang=en
+
+  # Topico especifico (ex: Apple)
+  http://www.getnewsstand.com/app/topic.php?topic=CAAqBwgKMOvMpAow7td3
+
+  # Feed RSS customizado
+  http://www.getnewsstand.com/app/feedlist.php?feed=https://feeds.macrumors.com/MacRumors-All
+
+  # Artigo (Google News URL)
+  http://www.getnewsstand.com/app/article.php?loc=US&a=https://news.google.com/rss/articles/CBMi...
+
+  # Artigo (URL direta de feed customizado)
+  http://www.getnewsstand.com/app/article.php?loc=US&a=https://arstechnica.com/...
+
+---
+  Exemplos de IDs de topico (CAAq...) presentes no binario
+
+  Top Technology News    CAAqJggKIiBDQkFTRWdvSUwyMHZNRGRqTVhZU0FtVnVHZ0pWVXlnQVAB
+  Apple                  CAAqBwgKMOvMpAow7td3
+  iPhone                 CAAqJAgKIh5DQkFTRUFvS0wyMHZNREkzYkc1NmN4SUNaVzRvQUFQAQ
+  Top Sports News        CAAqJggKIiBDQkFTRWdvSUwyMHZNRFp1ZEdvU0FtVnVHZ0pWVXlnQVAB
+  Top Entertainment News CAAqJggKIiBDQkFTRWdvSUwyMHZNREpxYW5RU0FtVnVHZ0pWVXlnQVAB
+  Top Gaming News        CAAqIQgKIhtDQkFTRGdvSUwyMHZNREZ0ZHpFU0FtVnVLQUFQAQ
+  Top Business News      CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtVnVHZ0pWVXlnQVAB
+
+---
+  Aprendizados tecnicos
+
+  Google News URL decoding (batchexecute):
+    - URLs de artigos do Google News sao redirecionamentos: news.google.com/rss/articles/<base64>
+    - Para obter a URL real: buscar data-n-a-sg e data-n-a-ts na pagina do artigo,
+      depois POST para https://news.google.com/_/DotsSplashUi/data/batchexecute
+      com f.req contendo os parametros Fbv4je
+
+  Feeds RSS/Atom:
+    - RSS 2.0: root <rss>, itens em <channel>/<item>, link em <link> ou <guid>
+    - Atom:    root <feed> com namespace http://www.w3.org/2005/Atom,
+               itens em <entry>, link no atributo href de <link>
+    - content:encoded (namespace http://purl.org/rss/1.0/modules/content/) contem
+      o corpo completo do artigo em muitos feeds WordPress
+    - Feeds malformados (& nao escapado, BOM UTF-8): corrigidos antes do parse;
+      ultimo recurso: lxml com recover=True
+
+  Problemas de sites que bloqueiam scraping (Ars Technica AWS WAF, Cult of Mac 403):
+    - O servidor cacheia o corpo dos itens do feed RSS ao carregar a lista
+    - Ao abrir o artigo, usa o cache do feed em vez de fazer scraping
+    - Funciona para qualquer site que forneca conteudo no proprio feed
+
+  Texto para Mac OS 9:
+    - Campos de texto usam \r (CR) como quebra de linha — \n vira quadrinho
+    - Solucao: achatar todo whitespace em espaco simples no corpo do artigo
+    - Caracteres nao-ASCII: transliterar via tabela _ASCII_SUBS (acentos, cedilha,
+      travessao, aspas tipograficas, simbolos ordinais o. e a.)
