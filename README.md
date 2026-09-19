@@ -1,5 +1,12 @@
 # Newsstand Mirror Server
 
+> [!CAUTION]
+> ### 🤖 AI-Generated Code Ahead
+> **This entire repository was crafted with the help of AI.**
+>
+> If you are allergic to neural networks, synthesized functions, or autocomplete on steroids, **this repository is not for you**.
+> You are kindly invited to close this page and write your code line-by-line in `ed` or `vim`. Everyone else, enjoy!
+
 A drop-in Python replacement for `www.getnewsstand.com`, the backend that powered the **Newsstand 1.1** Mac OS 9 app. Since the original server is no longer online, this mirror lets you run Newsstand on real vintage hardware or an emulator with live news content from Google News and custom RSS feeds.
 
 ## Background
